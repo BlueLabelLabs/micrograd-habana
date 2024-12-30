@@ -20,6 +20,8 @@ def get_device_initial(preferred_device=None):
         if torch.hpu.is_available():
             if preferred_device == "hpu" or preferred_device is None:
                 return "hpu"
+        else:
+            raise RuntimeError("HPU is not available. Please check Habana setup.")
 
     # Check for CUDA (GPU support)
     if torch.cuda.is_available():

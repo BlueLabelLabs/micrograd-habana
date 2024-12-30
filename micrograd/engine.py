@@ -1,38 +1,28 @@
-import os
-
-from micrograd.backend import CPUBackend, HPUBackend
-from micrograd.utils import get_device_initial
+import torch
 
 
 class Value:
     """stores a single scalar value and its gradient"""
 
-    def __init__(self, data, _children=(), _op=""):
-        self.data = data
-        self.grad = 0
+    def __init__(self, data, _children=(), _op="", device=None):
+        self.device = device
+        if (
+            self.device and self.device != "cpu"
+        ):  # use torch tensors if device is not cpu
+            self.data = torch.tensor(float(data), device=device)
+            self.grad = torch.tensor(0.0, device=device)
+        else:  # use micrograd "tensors"
+            self.data = data
+            self.grad = 0
+
         # internal variables used for autograd graph construction
         self._backward = lambda: None
         self._prev = set(_children)
         self._op = _op  # the op that produced this node, for graphviz / debugging / etc
 
-        # 1. Determine the device from an environment variable or default
-        env_preferred_device = os.environ.get("PREFERRED_DEVICE", None)
-        final_device = get_device_initial(env_preferred_device)
-
-        # 2. Instantiate the correct backend (no self.device, only self.backend)
-        if final_device == "hpu":
-            self.backend = HPUBackend()
-        # # As for now do not add GPUBackend
-        # elif final_device == "cuda":
-        #     self.backend = GPUBackend()
-        else:
-            # Could add CUDABackend if needed; defaulting to CPU here
-            self.backend = CPUBackend()
-
     def __add__(self, other):
-        other = other if isinstance(other, Value) else Value(other)
-        out_data = self.backend.add(self.data, other.data)
-        out = Value(out_data, (self, other), "+")
+        other = other if isinstance(other, Value) else Value(other, device=self.device)
+        out = Value(self.data + other.data, (self, other), "+")
 
         def _backward():
             self.grad += out.grad
@@ -43,9 +33,8 @@ class Value:
         return out
 
     def __mul__(self, other):
-        other = other if isinstance(other, Value) else Value(other)
-        out_data = self.backend.mul(self.data, other.data)
-        out = Value(out_data, (self, other), "*")
+        other = other if isinstance(other, Value) else Value(other, device=self.device)
+        out = Value(self.data * other.data, (self, other), "*")
 
         def _backward():
             self.grad += other.data * out.grad
@@ -59,8 +48,7 @@ class Value:
         assert isinstance(
             other, (int, float)
         ), "only supporting int/float powers for now"
-        out_data = self.backend.mul(self.data, other.data)
-        out = Value(out_data, (self,), f"**{other}")
+        out = Value(self.data**other, (self,), f"**{other}")
 
         def _backward():
             self.grad += (other * self.data ** (other - 1)) * out.grad
@@ -70,7 +58,9 @@ class Value:
         return out
 
     def relu(self):
-        out = Value(0 if self.data < 0 else self.data, (self,), "ReLU")
+        out = Value(
+            0 if self.data < 0 else self.data, (self,), "ReLU", device=self.device
+        )
 
         def _backward():
             self.grad += (out.data > 0) * out.grad
@@ -99,25 +89,25 @@ class Value:
             v._backward()
 
     def __neg__(self):  # -self
-        return self.backend.neg(self)
+        return self * -1
 
     def __radd__(self, other):  # other + self
-        return self.backend.add(other, self)
+        return self + other
 
     def __sub__(self, other):  # self - other
-        return self.backend.sub(self, other)
+        return self + (-other)
 
     def __rsub__(self, other):  # other - self
-        return self.backend.sub(other, self)
+        return other + (-self)
 
     def __rmul__(self, other):  # other * self
-        return self.backend.mul(other, self)
+        return self * other
 
     def __truediv__(self, other):  # self / other
-        return self.backend.truediv(self, other)
+        return self * other**-1
 
     def __rtruediv__(self, other):  # other / self
-        return self.backend.truediv(other, self)
+        return other * self**-1
 
     def __repr__(self):
         return f"Value(data={self.data}, grad={self.grad})"

@@ -12,9 +12,13 @@ class Module:
 
 
 class Neuron(Module):
-    def __init__(self, nin, nonlin=True):
-        self.w = [Value(random.uniform(-1, 1)) for _ in range(nin)]
-        self.b = Value(0)
+    def __init__(self, nin, nonlin=True, device=None):
+        if device and device != "cpu":  # use torch tensors if device is not cpu
+            self.w = [Value(random.uniform(-1, 1), device=device) for _ in range(nin)]
+            self.b = Value(0, device=device)
+        else:  # use micrograd "tensors"
+            self.w = [Value(random.uniform(-1, 1)) for _ in range(nin)]
+            self.b = Value(0)
         self.nonlin = nonlin
 
     def __call__(self, x):
@@ -44,10 +48,12 @@ class Layer(Module):
 
 
 class MLP(Module):
-    def __init__(self, nin, nouts):
+    def __init__(self, nin, nouts, device=None):
         sz = [nin] + nouts
         self.layers = [
-            Layer(sz[i], sz[i + 1], nonlin=i != len(nouts) - 1)
+            Layer(
+                sz[i], sz[i + 1], nonlin=i != len(nouts) - 1, device=device
+            )  # pass device to Layer
             for i in range(len(nouts))
         ]
 
