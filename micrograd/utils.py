@@ -30,34 +30,3 @@ def get_device_initial(preferred_device=None):
 
     # Default to CPU
     return "cpu"
-
-
-def auto_tensorize(cls):
-    """
-    Class decorator that wraps every non-special method so that
-    each argument is converted to a tensor via `self.backend`.
-    """
-    for attr_name, attr_value in list(vars(cls).items()):
-        # Only wrap callable attributes that aren't special (dunder) methods
-        if callable(attr_value) and not attr_name.startswith("__"):
-
-            def make_wrapped_method(method):
-                @wraps(method)
-                def wrapped_method(self, *args, **kwargs):
-                    # Convert positional args to backend tensors
-                    new_args = [self.backend.create_tensor(a) for a in args]
-
-                    # Convert keyword args to backend tensors
-                    new_kwargs = {
-                        k: self.backend.create_tensor(v) for k, v in kwargs.items()
-                    }
-
-                    # Now call the original method with converted arguments
-                    return method(self, *new_args, **new_kwargs)
-
-                return wrapped_method
-
-            wrapped = make_wrapped_method(attr_value)
-            setattr(cls, attr_name, wrapped)
-
-    return cls
