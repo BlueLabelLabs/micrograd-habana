@@ -23,6 +23,3 @@ COPY requirements_hpu.txt /workspace/requirements_hpu.txt
 # Install Python packages
 RUN pip install --upgrade pip \
     && pip install -r requirements_hpu.txt
-
-RUN python -m pytest -v
-RUN python run.py

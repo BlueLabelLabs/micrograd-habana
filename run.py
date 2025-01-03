@@ -1,6 +1,7 @@
 import numpy as np
 from micrograd.engine import Value
 from micrograd.nn import MLP
+from micrograd.utils import get_device_initial
 
 # make up a dataset
 from sklearn.datasets import make_moons
@@ -13,7 +14,7 @@ def make_dataset():
 
 
 def initialize_model():
-    model = MLP(2, [16, 16, 1])  # 2-layer neural network
+    model = MLP(2, [16, 16, 1], device=get_device_initial())  # 2-layer neural network
     print(model)
     print("number of parameters", len(model.parameters()))
     return model
